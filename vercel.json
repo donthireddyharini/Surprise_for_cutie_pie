@@ -3,11 +3,16 @@
   "installCommand": "npm install",
   "nodeVersion": "20.x",
   "public": "dist/client",
-  "api": "api",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/api/_"
     }
-  ]
+  ],
+  "functions": {
+    "api/_.mjs": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }

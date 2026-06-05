@@ -4,60 +4,75 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Import the server from dist
-const { default: server } = await import(join(__dirname, '..', 'dist', 'server', 'server.js'));
+let server;
 
-// Vercel expects (req, res) Node.js request/response
+async function getServer() {
+  if (!server) {
+    try {
+      const { default: srv } = await import(join(__dirname, '..', 'dist', 'server', 'server.js'));
+      server = srv;
+    } catch (e) {
+      console.error('Failed to load server:', e);
+      throw e;
+    }
+  }
+  return server;
+}
+
 export default async (req, res) => {
   try {
-    // Build the full URL
+    const srv = await getServer();
+    
+    // Get the server fetch function
+    const fetch = srv.fetch || srv;
+    if (typeof fetch !== 'function') {
+      throw new Error('Server does not have a fetch function');
+    }
+
+    // Build URL
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
-    const url = new URL(req.url || '/', `${protocol}://${host}`);
+    const pathname = req.url || '/';
+    const url = `${protocol}://${host}${pathname}`;
     
     const method = req.method || 'GET';
-    const headers = new Headers(req.headers);
-    
-    // Build request body if needed
-    let body = undefined;
+
+    // Prepare body
+    let body;
     if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
       body = await new Promise((resolve, reject) => {
         const chunks = [];
-        req.on('data', chunk => chunks.push(chunk));
+        req.on('data', (chunk) => chunks.push(chunk));
         req.on('end', () => resolve(Buffer.concat(chunks)));
         req.on('error', reject);
       });
     }
 
-    // Create Web API Request
-    const webRequest = new Request(url, {
+    // Create request
+    const webReq = new Request(url, {
       method,
-      headers,
+      headers: req.headers,
       body: body && body.length > 0 ? body : undefined,
     });
 
-    // Call the server fetch handler
-    const response = await server.fetch(webRequest);
+    // Get response
+    const response = await fetch(webReq);
 
-    // Set status code
+    // Set status
     res.statusCode = response.status;
-    
-    // Copy headers
-    for (const [key, value] of response.headers) {
+
+    // Set headers
+    response.headers.forEach((value, key) => {
       res.setHeader(key, value);
-    }
+    });
 
     // Send body
-    if (response.body) {
-      const arrayBuffer = await response.arrayBuffer();
-      res.end(Buffer.from(arrayBuffer));
-    } else {
-      res.end();
-    }
-  } catch (error) {
-    console.error('Error in Vercel handler:', error);
+    const buffer = await response.arrayBuffer();
+    res.end(Buffer.from(buffer));
+  } catch (err) {
+    console.error('Handler error:', err);
     res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
+    res.setHeader('Content-Type', 'text/html');
+    res.end(`<h1>Error</h1><p>${err.message}</p>`);
   }
 };

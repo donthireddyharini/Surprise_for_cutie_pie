@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "nodeVersion": "20.x",
+  "public": "dist/client",
+  "api": "api",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/_"
+    }
+  ]
+}

@@ -6,11 +6,5 @@
       "source": "/(.*)",
       "destination": "/api/_"
     }
-  ],
-  "functions": {
-    "api/_.mjs": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
